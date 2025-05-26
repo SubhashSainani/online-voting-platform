@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Elections</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand" href="#">Online Voting Platform</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/voting/dashboard(token=${token})}">Dashboard</a>
+                </li>
+                <li class="nav-item" sec:authorize="hasAuthority('ADMIN')">
+                    <a class="nav-link active" th:href="@{/voting/elections(token=${token})}">Manage Elections</a>
+                </li>
+                <li class="nav-item" sec:authorize="hasAuthority('ADMIN')">
+                    <a class="nav-link" th:href="@{/voting/candidates(token=${token})}">Manage Candidates</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <span class="navbar-text me-3">Welcome, <span sec:authentication="name"></span></span>
+                </li>
+                <li class="nav-item">
+                    <form th:action="@{/logout}" method="post">
+                        <input type="hidden" name="token" th:value="${token}" />
+                        <button type="submit" class="btn btn-outline-light">Logout</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Manage Elections</h2>
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createElectionModal">
+            Create New Election
+        </button>
+    </div>
+
+    <div class="alert alert-success" role="alert" th:if="${param.success}">
+        Operation completed successfully!
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5>All Elections</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="election : ${elections}">
+                    <td th:text="${election.id}"></td>
+                    <td th:text="${election.title}"></td>
+                    <td th:text="${election.description}"></td>
+                    <td th:text="${#temporals.format(election.startTime, 'yyyy-MM-dd HH:mm')}"></td>
+                    <td th:text="${#temporals.format(election.endTime, 'yyyy-MM-dd HH:mm')}"></td>
+                    <td>
+                        <span th:if="${#temporals.createNow().isBefore(election.startTime)}" class="badge bg-warning">Upcoming</span>
+                        <span th:if="${#temporals.createNow().isAfter(election.startTime) && #temporals.createNow().isBefore(election.endTime)}" class="badge bg-success">Active</span>
+                        <span th:if="${#temporals.createNow().isAfter(election.endTime)}" class="badge bg-secondary">Completed</span>
+                    </td>
+                    <td>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    th:attr="data-id=${election.id},data-title=${election.title},data-description=${election.description},data-starttime=${#temporals.format(election.startTime, 'yyyy-MM-dd''T''HH:mm')},data-endtime=${#temporals.format(election.endTime, 'yyyy-MM-dd''T''HH:mm')}"
+                                    onclick="prepareEditModal(this)" data-bs-toggle="modal" data-bs-target="#editElectionModal">
+                                Edit
+                            </button>
+                            <a th:href="@{/voting/elections/{id}/delete(id=${election.id}, token=${token})}" class="btn btn-sm btn-danger"
+                               onclick="return confirm('Are you sure you want to delete this election?')">Delete</a>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create Election Modal -->
+<div class="modal fade" id="createElectionModal" tabindex="-1" aria-labelledby="createElectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createElectionModalLabel">Create New Election</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form th:action="@{/voting/elections/create}" method="post" th:object="${newElection}">
+                    <input type="hidden" name="token" th:value="${token}" />
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="startTime" class="form-label">Start Time</label>
+                        <input type="datetime-local" class="form-control" id="startTime" name="startTime" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="endTime" class="form-label">End Time</label>
+                        <input type="datetime-local" class="form-control" id="endTime" name="endTime" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Election Modal -->
+<div class="modal fade" id="editElectionModal" tabindex="-1" aria-labelledby="editElectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editElectionModalLabel">Edit Election</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form th:action="@{/voting/elections/update}" method="post">
+                    <input type="hidden" name="token" th:value="${token}" />
+                    <input type="hidden" id="editId" name="id">
+                    <div class="mb-3">
+                        <label for="editTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="editTitle" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editDescription" name="description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStartTime" class="form-label">Start Time</label>
+                        <input type="datetime-local" class="form-control" id="editStartTime" name="startTime" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editEndTime" class="form-label">End Time</label>
+                        <input type="datetime-local" class="form-control" id="editEndTime" name="endTime" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function prepareEditModal(element) {
+        document.getElementById('editId').value = element.getAttribute('data-id');
+        document.getElementById('editTitle').value = element.getAttribute('data-title');
+        document.getElementById('editDescription').value = element.getAttribute('data-description');
+        document.getElementById('editStartTime').value = element.getAttribute('data-starttime');
+        document.getElementById('editEndTime').value = element.getAttribute('data-endtime');
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

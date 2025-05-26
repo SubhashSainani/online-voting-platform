@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Candidates</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand" href="#">Online Voting Platform</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/voting/dashboard(token=${token})}">Dashboard</a>
+                </li>
+                <li class="nav-item" sec:authorize="hasAuthority('ADMIN')">
+                    <a class="nav-link" th:href="@{/voting/elections(token=${token})}">Manage Elections</a>
+                </li>
+                <li class="nav-item" sec:authorize="hasAuthority('ADMIN')">
+                    <a class="nav-link active" th:href="@{/voting/candidates(token=${token})}">Manage Candidates</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <span class="navbar-text me-3">Welcome, <span sec:authentication="name"></span></span>
+                </li>
+                <li class="nav-item">
+                    <form th:action="@{/logout(token=${token})}" method="post">
+                        <input type="hidden" name="token" th:value="${token}" />
+                        <button type="submit" class="btn btn-outline-light">Logout</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Manage Candidates</h2>
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createCandidateModal">
+            Add New Candidate
+        </button>
+    </div>
+
+    <div class="alert alert-success" role="alert" th:if="${param.success}">
+        Operation completed successfully!
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>All Candidates</h5>
+                </div>
+                <div class="col-md-6">
+                    <form th:action="@{/voting/candidates}" method="get" class="d-flex">
+                        <input type="hidden" name="token" th:value="${token}" />
+                        <select class="form-select me-2" name="electionId">
+                            <option value="">All Elections</option>
+                            <option th:each="election : ${allElections}"
+                                    th:value="${election.id}"
+                                    th:text="${election.title}"
+                                    th:selected="${selectedElection != null && election.id == selectedElection.id}"></option>
+                        </select>
+                        <button type="submit" class="btn btn-light">Filter</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div th:if="${selectedElection != null}" class="mb-3">
+                <h6>Showing candidates for: <span th:text="${selectedElection.title}"></span></h6>
+            </div>
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Party</th>
+                    <th>Election</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="candidate : ${candidates}">
+                    <td th:text="${candidate.id}"></td>
+                    <td th:text="${candidate.name}"></td>
+                    <td th:text="${candidate.party}"></td>
+                    <td th:text="${electionMap.get(candidate.electionId)}"></td>
+                    <td>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    th:attr="data-id=${candidate.id},data-name=${candidate.name},data-party=${candidate.party},data-bio=${candidate.bio},data-electionid=${candidate.electionId}"
+                                    onclick="prepareEditModal(this)" data-bs-toggle="modal" data-bs-target="#editCandidateModal">
+                                Edit
+                            </button>
+                            <a th:href="@{/voting/candidates/{id}/delete(id=${candidate.id}, token=${token})}" class="btn btn-sm btn-danger"
+                               onclick="return confirm('Are you sure you want to delete this candidate?')">Delete</a>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create Candidate Modal -->
+<div class="modal fade" id="createCandidateModal" tabindex="-1" aria-labelledby="createCandidateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createCandidateModalLabel">Add New Candidate</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form th:action="@{/voting/candidates/create}" method="post">
+                    <input type="hidden" name="token" th:value="${token}" />
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="party" class="form-label">Party</label>
+                        <input type="text" class="form-control" id="party" name="party" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bio" class="form-label">Bio</label>
+                        <textarea class="form-control" id="bio" name="bio" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="electionId" class="form-label">Election</label>
+                        <select class="form-select" id="electionId" name="electionId" required>
+                            <option value="">Select an election</option>
+                            <option th:each="election : ${allElections}" th:value="${election.id}" th:text="${election.title}"></option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Candidate Modal -->
+<div class="modal fade" id="editCandidateModal" tabindex="-1" aria-labelledby="editCandidateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCandidateModalLabel">Edit Candidate</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form th:action="@{/voting/candidates/update}" method="post">
+                    <input type="hidden" name="token" th:value="${token}" />
+                    <input type="hidden" id="editId" name="id">
+                    <div class="mb-3">
+                        <label for="editName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="editName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editParty" class="form-label">Party</label>
+                        <input type="text" class="form-control" id="editParty" name="party" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editBio" class="form-label">Bio</label>
+                        <textarea class="form-control" id="editBio" name="bio" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editElectionId" class="form-label">Election</label>
+                        <select class="form-select" id="editElectionId" name="electionId" required>
+                            <option th:each="election : ${allElections}" th:value="${election.id}" th:text="${election.title}"></option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function prepareEditModal(element) {
+        document.getElementById('editId').value = element.getAttribute('data-id');
+        document.getElementById('editName').value = element.getAttribute('data-name');
+        document.getElementById('editParty').value = element.getAttribute('data-party');
+        document.getElementById('editBio').value = element.getAttribute('data-bio');
+        document.getElementById('editElectionId').value = element.getAttribute('data-electionid');
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
