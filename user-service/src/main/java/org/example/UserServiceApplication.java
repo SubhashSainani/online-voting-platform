@@ -14,7 +14,7 @@ public class UserServiceApplication {
 
     private static final Logger logger = LoggerFactory.getLogger(UserServiceApplication.class);
     public static void main(String[] args) {
-        logger.info("Testing3");
+        logger.info("Final test");
         SpringApplication.run(UserServiceApplication.class, args);
     }
 }
