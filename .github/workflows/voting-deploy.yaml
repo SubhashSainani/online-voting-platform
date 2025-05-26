@@ -184,14 +184,6 @@ jobs:
         echo "Setting up Ingress..."
         kubectl apply -f k8s/ingress/ -n voting-platform
 
-    - name: 🌐 Start Minikube Tunnel
-      shell: cmd
-      run: |
-        echo "Starting Minikube tunnel..."
-        start /B minikube tunnel
-        timeout /t 15 /nobreak
-        echo "Tunnel started in background"
-
     - name: 🔍 Deployment Verification
       shell: cmd
       run: |
