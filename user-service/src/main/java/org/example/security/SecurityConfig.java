@@ -56,7 +56,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
             .loginPage("/login")
             .loginProcessingUrl("/login")
             .successHandler((request, response, authentication) -> {
-                logger.info("===== LOGIN SUCCESS HANDLER CALLED =====");
+                logger.info("===== LOGIN SUCCESS HANDLER CALLEED =====");
                 logger.info("Request URL: {}", request.getRequestURL());
                 logger.info("Request URI: {}", request.getRequestURI());
                 logger.info("Server Name: {}", request.getServerName());
