@@ -1,4 +1,4 @@
-name: Voting Platform CI/CD
+name: Voting Platform CI/CD (Self-Hosted)
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - name: 🔽 Checkout Code
@@ -30,7 +30,16 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
 
+    - name: 🔧 Check Prerequisites
+      shell: cmd
+      run: |
+        echo "Checking prerequisites..."
+        docker --version
+        minikube version
+        kubectl version --client
+
     - name: 🏗️ Build Maven Projects
+      shell: cmd
       run: |
         echo "Building all Maven projects..."
         mvn clean compile -f service-discovery/pom.xml
@@ -39,6 +48,7 @@ jobs:
         mvn clean compile -f voting-service/pom.xml
 
     - name: 🧪 Run Tests
+      shell: cmd
       run: |
         echo "Running tests for all services..."
         mvn test -f service-discovery/pom.xml || echo "Service Discovery tests completed"
@@ -46,40 +56,32 @@ jobs:
         mvn test -f user-service/pom.xml || echo "User Service tests completed"
         mvn test -f voting-service/pom.xml || echo "Voting Service tests completed"
 
-    - name: 🐳 Start Minikube
-      uses: medyagh/setup-minikube@master
-      with:
-        minikube-version: 'latest'
-        driver: 'docker'
-        container-runtime: 'docker'
-        start-args: '--memory=4096 --cpus=2'
+    - name: 🔧 Check Minikube Status
+      shell: cmd
+      run: |
+        echo "Checking Minikube status..."
+        minikube status || (echo "Starting Minikube..." && minikube start --driver=docker --memory=4096 --cpus=2)
 
     - name: 🔧 Enable Minikube Addons
+      shell: cmd
       run: |
+        echo "Enabling Minikube addons..."
         minikube addons enable ingress
         minikube addons enable metrics-server
-        echo "Starting minikube tunnel in background..."
-        nohup minikube tunnel > tunnel.log 2>&1 &
-        sleep 10  # Wait for tunnel to establish
+        echo "Addons enabled successfully"
 
     - name: 🛠️ Configure Docker Environment
+      shell: cmd
       run: |
         echo "Configuring Docker to use Minikube's Docker daemon..."
-        # Set the Docker environment variables for this step and future steps
-        eval $(minikube docker-env)
-        
-        # Extract and export the environment variables to GitHub Actions environment
-        echo "DOCKER_TLS_VERIFY=$(minikube docker-env | grep DOCKER_TLS_VERIFY | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
-        echo "DOCKER_HOST=$(minikube docker-env | grep DOCKER_HOST | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
-        echo "DOCKER_CERT_PATH=$(minikube docker-env | grep DOCKER_CERT_PATH | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
-        echo "MINIKUBE_ACTIVE_DOCKERD=$(minikube docker-env | grep MINIKUBE_ACTIVE_DOCKERD | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
-        
+        FOR /f "tokens=*" %%i IN ('minikube docker-env --shell cmd') DO %%i
         echo "Docker environment configured for Minikube"
 
     - name: 🏗️ Build Docker Images
+      shell: cmd
       run: |
-        echo "Setting up Minikube Docker environment for this step..."
-        eval $(minikube docker-env)
+        echo "Setting up Minikube Docker environment..."
+        FOR /f "tokens=*" %%i IN ('minikube docker-env --shell cmd') DO %%i
         
         echo "Building Docker images..."
         
@@ -96,33 +98,39 @@ jobs:
         docker build --no-cache -t 2017445/voting-service:latest ./voting-service
         
         echo "✅ All images built successfully!"
-        docker images | grep 2017445
+        docker images | findstr 2017445
 
     - name: 🎯 Create Kubernetes Namespace
+      shell: cmd
       run: |
         kubectl create namespace voting-platform --dry-run=client -o yaml | kubectl apply -f -
 
     - name: 🔐 Apply Secrets
+      shell: cmd
       run: |
         echo "Applying Kubernetes secrets..."
         kubectl apply -f k8s/secrets/ -n voting-platform
 
     - name: 💾 Apply Persistent Storage
+      shell: cmd
       run: |
         echo "Setting up persistent storage..."
         kubectl apply -f k8s/persistence/ -n voting-platform
 
     - name: ⚙️ Apply ConfigMaps
+      shell: cmd
       run: |
         echo "Applying configuration maps..."
         kubectl apply -f k8s/configmaps/ -n voting-platform
 
     - name: 🔗 Apply Services
+      shell: cmd
       run: |
         echo "Creating Kubernetes services..."
         kubectl apply -f k8s/services/ -n voting-platform
 
     - name: 📊 Deploy Database
+      shell: cmd
       run: |
         echo "Deploying MySQL database..."
         kubectl apply -f k8s/deployments/mysql-deployment.yaml -n voting-platform
@@ -130,6 +138,7 @@ jobs:
         kubectl wait --for=condition=ready pod -l app=mysql -n voting-platform --timeout=300s
 
     - name: 🔍 Deploy Service Discovery
+      shell: cmd
       run: |
         echo "Deploying Eureka Service Discovery..."
         kubectl apply -f k8s/deployments/service-discovery-deployment.yaml -n voting-platform
@@ -137,6 +146,7 @@ jobs:
         kubectl wait --for=condition=ready pod -l app=service-discovery -n voting-platform --timeout=300s
 
     - name: 🚀 Deploy Microservices
+      shell: cmd
       run: |
         echo "Deploying User Service..."
         kubectl apply -f k8s/deployments/user-service-deployment.yaml -n voting-platform
@@ -148,6 +158,7 @@ jobs:
         kubectl apply -f k8s/deployments/api-gateway-deployment.yaml -n voting-platform
 
     - name: ⏳ Wait for Deployments
+      shell: cmd
       run: |
         echo "Waiting for all deployments to be ready..."
         kubectl wait --for=condition=available deployment/user-service -n voting-platform --timeout=300s
@@ -155,92 +166,104 @@ jobs:
         kubectl wait --for=condition=available deployment/api-gateway -n voting-platform --timeout=300s
 
     - name: 📈 Apply HPA (Horizontal Pod Autoscaler)
+      shell: cmd
       run: |
         echo "Setting up auto-scaling..."
         kubectl apply -f k8s/hpa/ -n voting-platform
 
-    - name: 🌐 Setup /etc/hosts for voting.local
+    - name: 🌐 Setup hosts file for voting.local
+      shell: cmd
       run: |
         echo "Setting up voting.local domain..."
-        echo "127.0.0.1 voting.local" | sudo tee -a /etc/hosts
-        cat /etc/hosts | grep voting.local
+        echo 127.0.0.1 voting.local >> C:\Windows\System32\drivers\etc\hosts
+        echo "voting.local added to hosts file"
 
     - name: 🚪 Apply Ingress
+      shell: cmd
       run: |
         echo "Setting up Ingress..."
         kubectl apply -f k8s/ingress/ -n voting-platform
 
+    - name: 🌐 Start Minikube Tunnel
+      shell: cmd
+      run: |
+        echo "Starting Minikube tunnel..."
+        start /B minikube tunnel
+        timeout /t 15 /nobreak
+        echo "Tunnel started in background"
+
     - name: 🔍 Deployment Verification
+      shell: cmd
       run: |
         echo "🔍 Verifying deployment status..."
-        echo ""
+        echo.
         echo "📊 All Resources:"
         kubectl get all -n voting-platform
         
-        echo ""
+        echo.
         echo "🏠 Pods Status:"
         kubectl get pods -n voting-platform -o wide
         
-        echo ""
+        echo.
         echo "🔗 Services:"
         kubectl get services -n voting-platform
         
-        echo ""
+        echo.
         echo "🌍 Ingress:"
         kubectl get ingress -n voting-platform
         
-        echo ""
+        echo.
         echo "📈 HPA Status:"
         kubectl get hpa -n voting-platform
 
     - name: 🧪 Health Check Tests
+      shell: cmd
       run: |
         echo "🧪 Running health checks..."
         
-        # Wait a bit for services to fully start
-        sleep 30
+        echo "Waiting for services to fully start..."
+        timeout /t 30 /nobreak
         
         echo "Testing voting.local accessibility..."
-        curl -s -o /dev/null -w "%{http_code}" http://voting.local/login | grep -q "200" && echo "✅ voting.local is accessible!" || echo "⚠️ voting.local might not be ready yet"
-        
-        echo "Testing internal service communication..."
-        kubectl exec -it $(kubectl get pod -l app=voting-service -n voting-platform -o jsonpath='{.items[0].metadata.name}') -n voting-platform -- nslookup user-service || echo "DNS resolution test completed"
+        curl -s -o nul -w "%%{http_code}" http://voting.local/login | findstr "200" && echo "✅ voting.local is accessible!" || echo "⚠️ voting.local might not be ready yet"
         
         echo "Checking pod readiness..."
-        READY_PODS=$(kubectl get pods -n voting-platform --no-headers | awk '{print $2}' | grep -c "1/1" || echo "0")
-        TOTAL_PODS=$(kubectl get pods -n voting-platform --no-headers | wc -l)
-        echo "Ready pods: $READY_PODS/$TOTAL_PODS"
+        FOR /f %%i IN ('kubectl get pods -n voting-platform --no-headers ^| find /c "1/1"') DO SET READY_PODS=%%i
+        FOR /f %%i IN ('kubectl get pods -n voting-platform --no-headers ^| find /c /v ""') DO SET TOTAL_PODS=%%i
+        echo "Ready pods: %READY_PODS%/%TOTAL_PODS%"
         
-        if [ "$READY_PODS" -eq "$TOTAL_PODS" ]; then
+        if "%READY_PODS%"=="%TOTAL_PODS%" (
           echo "✅ All pods are ready!"
-        else
+        ) else (
           echo "⚠️ Some pods are not ready yet"
           kubectl get pods -n voting-platform
-        fi
+        )
 
     - name: 📋 Generate Deployment Report
       if: always()
+      shell: cmd
       run: |
         echo "📋 DEPLOYMENT REPORT" > deployment-report.txt
         echo "===================" >> deployment-report.txt
-        echo "" >> deployment-report.txt
-        echo "🕐 Deployment Time: $(date)" >> deployment-report.txt
+        echo. >> deployment-report.txt
+        echo "🕐 Deployment Time: %DATE% %TIME%" >> deployment-report.txt
         echo "🔧 Git Commit: ${{ github.sha }}" >> deployment-report.txt
         echo "🌿 Branch: ${{ github.ref_name }}" >> deployment-report.txt
-        echo "" >> deployment-report.txt
+        echo. >> deployment-report.txt
         echo "📊 Pod Status:" >> deployment-report.txt
         kubectl get pods -n voting-platform >> deployment-report.txt
-        echo "" >> deployment-report.txt
+        echo. >> deployment-report.txt
         echo "🔗 Services:" >> deployment-report.txt
         kubectl get services -n voting-platform >> deployment-report.txt
-        echo "" >> deployment-report.txt
+        echo. >> deployment-report.txt
         echo "🌍 Ingress:" >> deployment-report.txt
         kubectl get ingress -n voting-platform >> deployment-report.txt
         
-        cat deployment-report.txt
+        type deployment-report.txt
 
     - name: 🧹 Cleanup on Failure
       if: failure()
+      shell: cmd
       run: |
         echo "🧹 Cleaning up failed deployment..."
         kubectl delete namespace voting-platform --ignore-not-found=true
@@ -248,21 +271,24 @@ jobs:
 
     - name: 🎉 Deployment Success
       if: success()
+      shell: cmd
       run: |
-        echo ""
+        echo.
         echo "🎉 DEPLOYMENT SUCCESSFUL!"
         echo "========================"
-        echo ""
+        echo.
         echo "✅ All services deployed successfully"
         echo "✅ Kubernetes cluster is ready"
         echo "✅ Application is accessible"
-        echo ""
+        echo.
         echo "🔗 Access the application:"
         echo "   - Local URL: http://voting.local/login"
-        echo "   - Minikube IP: $(minikube ip)"
-        echo "   - To access locally: Run 'minikube tunnel' and visit http://voting.local/login"
-        echo ""
-        echo "📊 Quick status check:"
-        kubectl get pods -n voting-platform | grep -c Running || echo "Pod count check"
-        echo ""
+        FOR /f %%i IN ('minikube ip') DO SET MINIKUBE_IP=%%i
+        echo "   - Minikube IP: %MINIKUBE_IP%"
+        echo "   - Minikube tunnel is running in background"
+        echo.
+        FOR /f %%i IN ('kubectl get pods -n voting-platform ^| find /c "Running"') DO SET RUNNING_PODS=%%i
+        echo "📊 Running pods: %RUNNING_PODS%"
+        echo.
         echo "🚀 Your voting platform is ready for use!"
+        echo "🌐 Visit: http://voting.local/login"
