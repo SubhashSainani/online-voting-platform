@@ -185,12 +185,12 @@ jobs:
         kubectl apply -f k8s/ingress/ -n voting-platform
 
     - name: 🌐 Start Minikube Tunnel
-      shell: pwsh
+      shell: cmd
       run: |
-        Write-Host "Starting Minikube tunnel in background..."
-        Start-Process minikube -ArgumentList "tunnel" -WindowStyle Hidden
-        Start-Sleep -Seconds 15
-        Write-Host "Tunnel started in background"
+        echo "Starting Minikube tunnel..."
+        start /B minikube tunnel
+        timeout /t 15 /nobreak
+        echo "Tunnel started in background"
 
     - name: 🔍 Deployment Verification
       shell: cmd
@@ -285,7 +285,7 @@ jobs:
         echo "   - Local URL: http://voting.local/login"
         FOR /f %%i IN ('minikube ip') DO SET MINIKUBE_IP=%%i
         echo "   - Minikube IP: %MINIKUBE_IP%"
-        echo "   - Minikube tunnel is running in background"
+        echo "   - Run 'minikube tunnel' manually to access the application"
         echo.
         FOR /f %%i IN ('kubectl get pods -n voting-platform ^| find /c "Running"') DO SET RUNNING_PODS=%%i
         echo "📊 Running pods: %RUNNING_PODS%"
