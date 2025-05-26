@@ -65,13 +65,20 @@ jobs:
     - name: 🛠️ Configure Docker Environment
       run: |
         echo "Configuring Docker to use Minikube's Docker daemon..."
+        # Set the Docker environment variables for this step and future steps
         eval $(minikube docker-env)
-        # Export the environment variables so they persist
-        minikube docker-env >> $GITHUB_ENV
+        
+        # Extract and export the environment variables to GitHub Actions environment
+        echo "DOCKER_TLS_VERIFY=$(minikube docker-env | grep DOCKER_TLS_VERIFY | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+        echo "DOCKER_HOST=$(minikube docker-env | grep DOCKER_HOST | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+        echo "DOCKER_CERT_PATH=$(minikube docker-env | grep DOCKER_CERT_PATH | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+        echo "MINIKUBE_ACTIVE_DOCKERD=$(minikube docker-env | grep MINIKUBE_ACTIVE_DOCKERD | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+        
+        echo "Docker environment configured for Minikube"
 
     - name: 🏗️ Build Docker Images
       run: |
-        echo "Setting up Minikube Docker environment..."
+        echo "Setting up Minikube Docker environment for this step..."
         eval $(minikube docker-env)
         
         echo "Building Docker images..."
